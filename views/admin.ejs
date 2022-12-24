@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>KOL close to your life</title>
+    <link rel="icon" href="https://encrypted-tbn0.gstatic.com/images?q=tbn%3AANd9GcSxo7T_AlER_iJZ3UxO73jpsv78R3PevDnhKboccNuZhShHLXaI&usqp=CAU">
+    <link rel="stylesheet" href="https://code.jquery.com/ui/1.13.2/themes/base/jquery-ui.css">
+    <link rel="stylesheet" type="text/css" href="https://cdn.datatables.net/v/dt/dt-1.10.20/datatables.min.css"/>
+    <link rel="stylesheet" href="https://jqueryui.com/resources/demos/style.css">
+    
+    <link rel='stylesheet' href='/stylesheets/style.css' />
+    <script src="https://code.jquery.com/jquery-3.6.0.js"></script>
+    <script src="https://code.jquery.com/ui/1.13.2/jquery-ui.js"></script>
+    <script type="text/javascript" src="https://cdn.datatables.net/v/dt/dt-1.10.20/datatables.min.js"></script>
+    <style>
+      tr, td, th {
+        border: 1px solid #000;
+        padding: 12px;
+      }
+      th {
+        font: bold;
+      }
+      table{
+        margin:20px;
+        width:80%;
+        border-collapse: collapse;
+      }
+    </style>
+    <script>
+      const serverHost = 'http://localhost:3000';
+      function getDataTable(tableData) {
+
+        $.ajax({
+            type: 'GET',
+            url: `${serverHost}/datas`,
+            success: function (datas) {
+              let postHtml = `
+                <table>
+                  <tr>
+                    <th></th>
+                    <th>Channel Id</th>
+                    <th>Channel Title</th>
+                    <th>Title</th>
+                    <th>Description</th>
+                    <th>Published At</th>
+                    <th>Thumbnail</th>
+                  </tr>
+                  ${datas
+                    .map((item,idx)=>{
+                    return `<tr>
+                      <td>${item._id || ''}</td>
+                      <td>${item.snippet.channelId}</td>
+                      <td>${item.snippet.channelTitle}</td>
+                      <td style='max-width:100px;'>${item.snippet.title}</td>
+                      <td>${item.snippet.description}</td>
+                      <td>${item.snippet.publishedAt}</td>
+                      <td><img style='max-width:120px;'src='${item.snippet.thumbnails.default.url}' /></td>
+                    <tr>`;
+                  }).join('')}
+                </table>`;
+                $("#table_container").html(postHtml);
+              
+            },
+            error: function () {
+              console.log('channel error');
+            }
+          });
+      }
+      $(function () {
+        $('#admin').hide();
+        getDataTable();
+      });
+      </script>
+  </head>
+  <body>
+    
+    <div id='login'>
+      AdminUsr: <input value="admin"/><br><br>
+      Password: <input type="password" value="admin123"/><br><br>
+      <button onclick="$('#admin').show();$('#login').hide();">登入</button><br>
+    </div>
+    <div id='admin'>
+      <h3>DATAs SUBMIT by KOLs</h3>
+      <div id="table_container">
+          <table id="table" style="width:100%">
+            <thead>
+              <tr>
+                <th></th>
+                <th>Title</th>
+                <th>Description</th>
+                <th>Published At</th>
+                <th>View Count</th>
+                <th>Like Count</th>
+                <th>Comment Count</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+      </div>
+    </div>
+</body>
+</html>

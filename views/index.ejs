@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>KOL close to your life</title>
+    <link rel="icon" href="https://encrypted-tbn0.gstatic.com/images?q=tbn%3AANd9GcSxo7T_AlER_iJZ3UxO73jpsv78R3PevDnhKboccNuZhShHLXaI&usqp=CAU">
+    <link rel="stylesheet" href="https://code.jquery.com/ui/1.13.2/themes/base/jquery-ui.css">
+    <link rel="stylesheet" href="https://jqueryui.com/resources/demos/style.css">
+    <link rel='stylesheet' href='/stylesheets/style.css' />
+    <script src="https://code.jquery.com/jquery-3.6.0.js"></script>
+    <script src="https://code.jquery.com/ui/1.13.2/jquery-ui.js"></script>
+    <style>
+      tr, td, th {
+        border: 1px solid #000;
+        padding: 12px;
+      }
+      th {
+        font: bold;
+      }
+      table{
+        border-collapse: collapse;
+      }
+      .ui-dialog-titlebar-close {
+          padding:0 !important;
+      }
+
+      .ui-dialog-titlebar-close:after {
+          content: '';
+          width: 20px;
+          height: 20px;
+          display: inline-block;
+          /* Change path to image*/
+          background-image: url(themes/base/images/ui-icons_777777_256x240.png);
+          background-position: -96px -128px;
+          background-repeat: no-repeat;
+      }
+    </style>
+    <script>
+      let globalItems = [];
+      const serverHost = 'http://localhost:3000';
+      const callbackUrl = 'http://localhost:3000';
+      function init (){
+        var bootstrapButton = $.fn.button.noConflict() // return $.fn.button to previously assigned value
+        $.fn.bootstrapBtn = bootstrapButton;           // give $().bootstrapBtn the Bootstrap functionality
+        $("#privacy_policy").dialog({
+          autoOpen: false,
+          height: 600,
+          width: $(window).width() - 120,
+          closeOnEscape: true,
+          position: {
+            my: "top+30",
+            at: "top",
+          },
+          title: 'Privacy Policy',
+          modal: true,
+          buttons : [{
+            text: "Sure I see.", 
+            click: function() { $(this).dialog("close");}
+          }],
+          // closeText: "I See!",
+          // close: function() {
+          //   // $("#dialog_content").html('');
+          // }
+        });
+        $("#btn").click(function(){
+          $.ajax({
+            type: 'GET',
+            url: `${serverHost}/get-oauth-url?callback=${decodeURIComponent(callbackUrl)}`,
+            success: function (res) {
+              location.href = res.authorizeUrl;
+            },
+            error: function () {
+              console.log('channel error');
+            }
+          });
+        });
+        $("#table_container").delegate(".confirm","click", function(e){
+          const theData = globalItems[+$(this).attr('idx')]
+          console.log("hi?")
+          console.log(theData,$(this).attr('idx'));
+          $.ajax({
+            type: 'POST',
+            url: `${serverHost}/datas`,
+            dataType: "json",
+            contentType: "application/json;charset=utf-8",
+            data: JSON.stringify(theData),
+            success: function (datas) {
+              $("#body").html(
+                '<h5>Successfully submit video of cooperate with 超級網紅雷達.</h5>'+
+                '<h5>Thanks</h5>'
+              );
+            },
+            error: function () {
+              console.log('channel error');
+            }
+          });
+            
+        });
+      }
+      $(function () {
+        let urlParams = new URLSearchParams(window.location.search);
+        const code = urlParams.get('code');
+        init();
+        if (!code){
+          setTimeout(function(){
+            $('#privacy_policy').dialog('open');
+            $("#privacy_policy").scrollTop(0);
+          },1000);
+        } else {
+          $('#btn').hide();
+          $('#intro').hide();
+          
+          $.ajax({
+            type: 'GET',
+            url: `${serverHost}/get-code-token?callback=${decodeURIComponent(callbackUrl)}&code=${code}`,
+            success: function (res) {
+              // alert(res.token.access_token);
+              $.ajax({
+                type: 'GET',
+                url: `https://www.googleapis.com/youtube/v3/channels?mine=true&part=snippet`,
+                headers:{
+                  'authorization': `Bearer ${res.token.access_token} `
+                },
+                success: function (resp) {
+                  if (resp.items.length == 0 ){
+                    alert("you don't have any yt channels!!");
+                    location.href = '/';
+                    return 
+                  }
+
+                  const channelID = resp.items[0].id;
+                  $.ajax({
+                    type: 'GET',
+                    url: `https://www.googleapis.com/youtube/v3/playlists?channelId=${channelID}&maxResults=50&order=date&part=snippet,id`,
+                    headers:{
+                      'authorization': `Bearer ${res.token.access_token} `
+                    },
+                    success: function (resp) {
+                      console.log(resp);
+                      globalItems = resp.items;
+                      let postHtml = `These are posts of yours, choose the one which cooperate with 超級網紅雷達<br><br>
+                      <table>
+                        <tr>
+                          <th></th>
+                          <th>Title</th>
+                          <th>Description</th>
+                          <th>Published At</th>
+                          <th>Thumbnail</th>
+                        </tr>
+                        ${resp.items
+                          .filter((item)=>{
+                            return (Date.now()- 25 * 60 * 60 * 24 * 1) > new Date(item.snippet.publishedAt).getTime();
+                          })
+                          .map((item,idx)=>{
+                            console.log(idx)
+                          return `<tr>
+                            <td><button class='confirm' idx='${idx}'>This post</button></td>
+                            <td style='max-width:100px;'>${item.snippet.title}</td>
+                            <td>${item.snippet.description}</td>
+                            <td>${item.snippet.publishedAt}</td>
+                            <td><img style='max-width:120px;'src='${item.snippet.thumbnails.default.url}' /></td>
+                          <tr>`;
+                        }).join('')}
+                      </table>`;
+                      $("#table_container").html(postHtml);
+                    }
+                  }); 
+                },
+                error: function (xhr, status, error) {
+                  alert(xhr.responseText);
+                }
+              });
+            },
+            error: function (xhr, status, error) {
+              alert(xhr.responseText);
+              location.href = '/'
+            }
+          });
+        }
+        
+
+      });
+    </script>
+  </head>
+  <body>
+    <div id="dialog"></div>
+    <h3>Cooperate with 超級網紅雷達 </h3>
+    <div id='body' style="margin:40px;">
+      <div id="intro">
+        Hi, We are 超級網紅雷達,<br>
+        Have glad to cooperate with you, and we currently need you to submit which video you have post for this cooperation.<br>
+        Please click this button below and choose the post.<br><br>
+      </div>
+      <div id='btn' class="row">
+        <div class="col-md-3">
+          <a class="btn btn-outline-dark" href="#" role="button" style="text-transform:none">
+            <img width="20px" style="margin-bottom:3px; margin-right:5px" alt="Google sign-in" src="https://upload.wikimedia.org/wikipedia/commons/thumb/5/53/Google_%22G%22_Logo.svg/512px-Google_%22G%22_Logo.svg.png" />
+            Login with Google
+          </a>
+        </div>
+      </div>
+      <div id="table_container">
+      </div>
+    </div>
+    
+    <!-- Minified CSS and JS -->
+    <link rel="stylesheet" 
+    href="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0/css/bootstrap.min.css" 
+    integrity="sha384-Gn5384xqQ1aoWXA+058RXPxPg6fy4IWvTNh0E263XmFcJlSAwiGgFAW/dAiS6JXm" 
+    crossorigin="anonymous">
+    <script src="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0/js/bootstrap.min.js" 
+    integrity="sha384-JZR6Spejh4U02d8jOt6vLEHfe/JQGiRRSQQxSfFWpi1MquVdAyjUar5+76PVCmYl" 
+    crossorigin="anonymous">
+    </script>
+
+  <div style="line-height:1;padding:5px;left: 0px;text-align:left;padding:10px;background-color: rgb(142, 180, 244);color: #333;position:fixed;width:calc(100vw);bottom:0px;height:96px;border-top: 1px #ccc solid;">
+    <b>This App use YouTube Data V3 API:
+      <a href="https://developers.google.com/youtube/v3/docs/channels?hl=zh-tw" target="_blank">channels</a> , 
+      <a href="https://developers.google.com/youtube/v3/docs/search?hl=zh-tw" target="_blank">search</a> , 
+      <a href="https://developers.google.com/youtube/v3/docs/videos?hl=zh-tw" target="_blank">videos</a> to collect datas<br>
+      Please do not forget to read the following terms before use:<br>
+      <a href="https://www.youtube.com/t/terms" target="_blank">YouTube API Services Terms of Service(zh)</a> , 
+      <a href="https://developers.google.com/youtube/terms/api-services-terms-of-service" target="_blank">YouTube API Services Terms of Service(en)</a> , 
+      <a href="https://policies.google.com/privacy?hl=en-US" target="_blank">Google Privacy Policy</a> 
+      <br>Copyright © 2022 iKala All Rights Reserved.
+      <br>You can contact us at <a href="mailto:contact@ikala.tv">contact@ikala.tv</a>, and we will contact you as soon as possible.
+    </b>
+  </div>
+  <div id="privacy_policy">
+    <div id="privacy_policy_content">
+      <div class="PageInfoLayout__PageInfoInnerWrapper-sc-1lk4kad-2 cIswUh"><div class="PrivacyEN__PrivacyWrapper-sc-149hflu-0 dqvBKE"><p>超級網紅雷達 (hereinunder the “超級網紅雷達”, “Service”, “Company” or “us”) values the privacy of our user (hereinunder “Members”, “User” or “you”) very much. In order to let you understand how we collect, apply, and protect the personal information you provided to our Company, kindly read the following privacy protection policy.</p><p>This Privacy Policy is read in conjunction with and is deemed incorporated by reference, to be part of the Terms of Service. If you desire to use our Service, you must agree with the following terms of this Privacy Policy. If you disagree to implement the following terms of this Privacy Policy, please stop using our Service immediately.</p><h4>Acquisition of Personal Information:</h4><p>When you registered and became the Member of our Service or when you provide information to our Company, we will ask you to provide your “Personal Information” including but without limitation: name, registered ID (which is your email address), gender, telephone and address and all information acquired for us to provide you with our Service. And under the Taiwan Personal Data Protection Act, we may collect Personal Data as the classifications below:</p><ul><li>C001 Type for identifying individuals, C002 Type for identifying finance, C003 Type for identifying in government data;C011 Individual description, C012 Physical description, C013 Habit, C014 Characteristic;</li><li>C024 Other social relations;</li><li>C034 Travel and other migration, C035 Recreational activities and interests, C038 Occupation, C039 Licences or other permissions;</li><li>C051 Schools record, C052 Qualification or technique, C053 Membership of occupation Associations, C054 Occupation expertise, C056 Works, C057 Record of students, apprentices, Examinees;</li><li>C061 Current status of employment, C062 Employment experiences, C063 Leave office, C064 Working experiences, C065 Working or missions record, C066 Record of health and safety, C067 Membership of the labour union and prerequisite for the employees; C068 Salaries and withholding amount, C069 Property held by employee, C070 Details of working managements, C071 Detailed evaluation of work, C072 Educational and training record, C073 Details concerning security;</li><li>C081 Earning, income, property and investment, C087 Subsidies, welfares, donations, C088 Details concerning insurance, C089 Social insurance benefits, veterans care benefits or any other retirement benefits, C091 Goods or services obtained by data subject, C093 Financial transaction;</li><li>C101 Data subject's business activities, C102 Agreement or contract, C103 License relating to business, C111 Record of health, C131 Research of paper documents, C132 Data unclassified.</li></ul><p>As your Membership became valid, you may the Member account you set up to make full use of the various Services provided by us. You may access to modify the Personal Information you provided to us to maintain its accuracy.</p><h4>Use of Personal Information:</h4><p>Improvement of products, optimization of Service(s), and design of activities:</p><p>To prefect our Service item, design activities and other internal operations, we will collect the associated information concerning your User behavior when using our Service, including but not limited to: the information you browsed, the function of our Service you use, actions you took and your active period, frequency and duration for our Company’s reference and statistics.</p><p>Other Commercial use:</p><p>We will use the information we collected to help the Company and other associated partners for the purpose of notification of activities, measurement of marketing methods, improvement of customer management, analysis, and research of services and data.</p><p>To be specific, according to the Taiwan Personal Data Protection Act, you agree that we may collect, process, and use your Personal Information for the purpose below:</p><ul><li>020 Agency and brokerage business</li><li>040 Marketing (including financial cross-selling business)</li><li>063 Non-government agency collect or process personal information under legal obligations</li><li>069 Contract, contract-like or other legal relation matters</li><li>081 Legal transaction business for personal data</li><li>090 Consumer, Customer Management and Service</li><li>091 Consumer Protection</li><li>098 Business and Technical Information</li><li>099 Domestic and overseas interchange business</li><li>118 Intellectual property rights, the disc management and other related administrative</li><li>143 Sports and Recreation Business</li><li>145 Employment &amp; service administration</li><li>148 Internet shopping and other electronic commerce services</li><li>152 Advertisement or commercial behaviour administration</li><li>176 Other natural persons based on the legitimacy of the purpose of the processing and use of personal information collected</li><li>182 Other Consulting and Consultant Services</li></ul><h4>How to protect your Personal information:</h4><p>In light of protecting your privacy, we use multiple safety technology and processes to secure your basic information. Under certain circumstances, we may use a standard 256-bit SSL encryption protection mechanism ensuring the delivery of your Personal Information is safe.</p><p>*Reminder: Kindly keep your personal data and password properly. To prevent your Personal Information from being misappropriated by others, whenever you finish using our Service, please make sure to log out or turn off the software or browser.</p><h4>How to delete or stop my Personal Information is collected, processed and used:</h4><p>You have the right to stop 超級網紅雷達 collecting, processing and using any of your Personal Information, and the right to ask us to delete your Personal Information as well. Concerning the management of your Personal Information, you have the following rights:</p><ul><li>Right to delete: You are entitled to ask us to delete any Personal Data.</li><li>Process Limitation: You are entitled to ask us to stop processing all or part of the Personal Data permanently.</li><li>Right to refusal: If you agree to our use of your information, you have the right to object to our processing of your/third party individuals’ personal information at any time based on your or the special circumstances of the third party through which you import personal data; if you wish to exercise your right of refusal, you can use the system settings adjustments or contact us by the email address (email address: <a href="mailto:kolradar@ikala.tv">kolradar@ikala.tv</a>).</li><li>Right to data portability: You have the right to request a copy of your personal data in electronic form and to request the transfer of personal data for use by another party's services, but you may be required to pay for the cost and administrative fees of our assistance.</li><li>Other rights according to Article 3 of the Taiwan Personal Data Protection Act.</li></ul><p>However, please be aware that when you implement any of the above rights towards the management of your Personal Information, there will be a limitation for us to provide you with the complete Services. Furthermore, this may cause us not to be able to provide you with our Service anymore.</p><p>According to this Privacy Policy and considering our position of protecting our Members, if you wish to terminate the Service of 超級網紅雷達, kindly contact our customer service and click “Contact Us” through the customer centre on our website for the application of termination.</p><h4>About the exercise of Cookies/Cache:</h4><p>Cookies/Cache is a small text file in your running device which contains the information recorded from a web server via a browser, and its main purpose is to save your precious time. Our Service will use Cookies/Cache save, modify or track information concerning your online browsing and access your Cookies/Cache when you register, log in, browsing web pages or log out. You may change the setting, cancel or restrict this function through your browser.</p><h4>Miscellaneous:</h4><p>Regarding the Personal Information and use record that you record in our Service, we will take appropriate measure and commercially reasonable effort to make sure the security of such information stored in our system.</p><p>*Reminder: If your Personal Information is leaked or deleted due to a third-party illegal act, acts of god or war, our Company shall not be responsible or liable for such events of force majeure. Your discretion and evaluation of the risks of interruption, loss, error, theft, interference of the data transmission process are advised before using our Service.</p><h4>Execution of Privacy Policy:</h4><p>If you have any questions about our Privacy Policy, please contact the customer centre.</p><h4>Update of Privacy Policy:</h4><p>We reserve the right to modify this Privacy Policy at any time. The revised terms will be published on the relevant pages on the website of our Service and will be entered into effective as of the date of the announcement. We will not notify you otherwise. When you continue to use our Service after any modification or change of the Privacy Policy, that means you have read, understood and agreed to accept the revised terms.</p><h4>Governing Law and Jurisdiction:</h4><p>The terms and conditions of this Privacy Policy are governed by the laws of the Republic of China (Taiwan). Any events of any disputes arising from this Privacy Policy and/or your use of our Service, you shall use your best endeavors to amicably settle any dispute in good faith with us. If we could not reach the settlement in 30 days, you agree to submit to the exclusive jurisdiction of the Courts of Taiwan Taipei District Court.</p><p class="PrivacyEN__FinalEditLabel-sc-149hflu-1 cufElh">Last updated on June 29, 2022.</p></div></div>
+    </div>
+  </div>
+</body>
+</html>
